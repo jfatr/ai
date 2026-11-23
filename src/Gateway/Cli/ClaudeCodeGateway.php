@@ -2,10 +2,12 @@
 
 namespace Laravel\Ai\Gateway\Cli;
 
-use Laravel\Ai\Contracts\Providers\TextProvider;
+use Laravel\Ai\Gateway\Anthropic\Concerns\MapsAttachments;
 
 class ClaudeCodeGateway extends CliGateway
 {
+    use MapsAttachments;
+
     /**
      * {@inheritdoc}
      */
@@ -17,13 +19,12 @@ class ClaudeCodeGateway extends CliGateway
     /**
      * {@inheritdoc}
      */
-    protected function command(TextProvider $provider, string $model, ?string $instructions, ?array $schema, string $directory): array
+    protected function command(CliRequest $request): array
     {
-        $config = $provider->additionalConfiguration();
-
         return [
-            $config['binary'] ?? 'claude',
+            $request->config('binary', 'claude'),
             '--print',
+            '--input-format', 'stream-json',
             '--output-format', 'stream-json',
             '--verbose',
             '--include-partial-messages',
@@ -33,33 +34,44 @@ class ClaudeCodeGateway extends CliGateway
             '--strict-mcp-config',
             '--disable-slash-commands',
             '--no-session-persistence',
-            ...($model === self::DEFAULT_MODEL ? [] : ['--model', $model]),
-            ...(filled($instructions) ? ['--system-prompt', $instructions] : []),
-            ...($schema === null ? [] : ['--json-schema', json_encode($schema, JSON_THROW_ON_ERROR)]),
+            ...($request->model === self::DEFAULT_MODEL ? [] : ['--model', $request->model]),
+            ...(filled($request->instructions) ? ['--system-prompt', $request->instructions] : []),
+            ...($request->schema === null ? [] : ['--json-schema', json_encode($request->schema, JSON_THROW_ON_ERROR)]),
+            ...($request->toolServer === null ? [] : [
+                '--mcp-config', json_encode(['mcpServers' => [ToolBridge::SERVER => [
+                    'command' => $request->toolServer[0],
+                    'args' => array_slice($request->toolServer, 1),
+                ]]], JSON_THROW_ON_ERROR),
+                '--allowedTools', 'mcp__'.ToolBridge::SERVER,
+            ]),
         ];
     }
 
     /**
      * {@inheritdoc}
      */
-    protected function input(?string $instructions, string $prompt): string
+    protected function input(CliRequest $request): string
     {
-        return $prompt;
+        return json_encode(['type' => 'user', 'message' => ['role' => 'user', 'content' => [
+            ...($request->prompt === '' ? [] : [['type' => 'text', 'text' => $request->prompt]]),
+            ...$this->mapAttachments($request->attachments),
+        ]]], JSON_THROW_ON_ERROR)."\n";
     }
 
     /**
      * {@inheritdoc}
      */
-    protected function environment(TextProvider $provider): array
+    protected function environment(CliRequest $request): array
     {
-        $config = $provider->additionalConfiguration();
-
         return array_filter([
             // An inherited API key would be billed in place of the subscription...
             'ANTHROPIC_API_KEY' => false,
             'ANTHROPIC_AUTH_TOKEN' => false,
-            'CLAUDE_CODE_OAUTH_TOKEN' => $config['oauth_token'] ?? null,
-            'CLAUDE_CONFIG_DIR' => $config['home'] ?? null,
+            'CLAUDE_CODE_OAUTH_TOKEN' => $request->config('oauth_token'),
+            'CLAUDE_CONFIG_DIR' => $request->config('home'),
+            'CLAUDE_CODE_MAX_OUTPUT_TOKENS' => $request->options?->maxTokens === null
+                ? null
+                : (string) $request->options->maxTokens,
         ], fn (mixed $value): bool => $value === false || filled($value));
     }
 
@@ -71,10 +83,18 @@ class ClaudeCodeGateway extends CliGateway
         $type = $event['type'] ?? null;
 
         if ($type === 'stream_event') {
-            $turn->model ??= $event['event']['message']['model'] ?? null;
+            $stream = $event['event'] ?? [];
 
-            return ($event['event']['delta']['type'] ?? null) === 'text_delta'
-                ? ($event['event']['delta']['text'] ?? null)
+            $turn->model ??= $stream['message']['model'] ?? null;
+
+            if (($stream['delta']['stop_reason'] ?? null) === 'max_tokens') {
+                $turn->truncated = true;
+
+                $this->recordUsage($stream['usage'] ?? [], $turn);
+            }
+
+            return ($stream['delta']['type'] ?? null) === 'text_delta'
+                ? ($stream['delta']['text'] ?? null)
                 : null;
         }
 
@@ -90,17 +110,27 @@ class ClaudeCodeGateway extends CliGateway
             return null;
         }
 
-        $usage = $event['usage'] ?? [];
+        $turn->text = $result;
+        $turn->structured = is_array($event['structured_output'] ?? null) ? $event['structured_output'] : null;
+
+        $this->recordUsage($event['usage'] ?? [], $turn);
+
+        return null;
+    }
+
+    /**
+     * Record the token usage the CLI reported.
+     *
+     * @param  array<string, mixed>  $usage
+     */
+    protected function recordUsage(array $usage, CliTurn $turn): void
+    {
         $cacheRead = $usage['cache_read_input_tokens'] ?? null;
         $cacheWrite = $usage['cache_creation_input_tokens'] ?? null;
 
-        $turn->text = $result;
-        $turn->structured = is_array($event['structured_output'] ?? null) ? $event['structured_output'] : null;
         $turn->inputTokens = ($usage['input_tokens'] ?? 0) + ($cacheRead ?? 0) + ($cacheWrite ?? 0);
         $turn->outputTokens = $usage['output_tokens'] ?? 0;
         $turn->cacheReadInputTokens = $cacheRead;
         $turn->cacheWriteInputTokens = $cacheWrite;
-
-        return null;
     }
 }

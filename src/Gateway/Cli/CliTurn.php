@@ -30,6 +30,11 @@ class CliTurn
     public ?string $error = null;
 
     /**
+     * Whether the model stopped because it reached its output token limit.
+     */
+    public bool $truncated = false;
+
+    /**
      * The model reported by the CLI.
      */
     public ?string $model = null;
