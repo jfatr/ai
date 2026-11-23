@@ -22,6 +22,8 @@ use Laravel\Ai\Gateway\OpenAi\OpenAiGateway;
 use Laravel\Ai\Providers\AnthropicProvider;
 use Laravel\Ai\Providers\AzureOpenAiProvider;
 use Laravel\Ai\Providers\BedrockProvider;
+use Laravel\Ai\Providers\ClaudeCodeProvider;
+use Laravel\Ai\Providers\CodexProvider;
 use Laravel\Ai\Providers\CohereProvider;
 use Laravel\Ai\Providers\DeepSeekProvider;
 use Laravel\Ai\Providers\ElevenLabsProvider;
@@ -399,6 +401,28 @@ class AiManager extends MultipleInstanceManager
     public function createMistralDriver(array $config): MistralProvider
     {
         return new MistralProvider(
+            $config,
+            $this->app->make(Dispatcher::class)
+        );
+    }
+
+    /**
+     * Create a Claude Code CLI powered instance.
+     */
+    public function createClaudeCodeDriver(array $config): ClaudeCodeProvider
+    {
+        return new ClaudeCodeProvider(
+            $config,
+            $this->app->make(Dispatcher::class)
+        );
+    }
+
+    /**
+     * Create a Codex CLI powered instance.
+     */
+    public function createCodexDriver(array $config): CodexProvider
+    {
+        return new CodexProvider(
             $config,
             $this->app->make(Dispatcher::class)
         );

@@ -59,6 +59,18 @@ return [
             'url' => env('ANTHROPIC_URL', 'https://api.anthropic.com/v1'),
         ],
 
+        'claude-code' => [
+            'driver' => 'claude-code',
+            'binary' => env('CLAUDE_CODE_BINARY', 'claude'),
+            'oauth_token' => env('CLAUDE_CODE_OAUTH_TOKEN'),
+        ],
+
+        'codex' => [
+            'driver' => 'codex',
+            'binary' => env('CODEX_BINARY', 'codex'),
+            'home' => env('CODEX_HOME'),
+        ],
+
         'azure' => [
             'driver' => 'azure',
             'key' => env('AZURE_OPENAI_API_KEY'),
