@@ -10,13 +10,18 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Support\Stringable;
 use Laravel\Ai\Agents\SummarizeAgent;
+use Laravel\Ai\Auth\FileTokenStore;
+use Laravel\Ai\Auth\OAuthCredentials;
 use Laravel\Ai\Classification\Boolean;
 use Laravel\Ai\Classification\CollectionChoice;
 use Laravel\Ai\Console\Commands\ChatCommand;
+use Laravel\Ai\Console\Commands\LoginCommand;
+use Laravel\Ai\Console\Commands\LogoutCommand;
 use Laravel\Ai\Console\Commands\MakeAgentCommand;
 use Laravel\Ai\Console\Commands\MakeAgentMiddlewareCommand;
 use Laravel\Ai\Console\Commands\MakeToolCommand;
 use Laravel\Ai\Contracts\ConversationStore;
+use Laravel\Ai\Contracts\TokenStore;
 use Laravel\Ai\Enums\Lab;
 use Laravel\Ai\Responses\AudioResponse;
 use Laravel\Ai\Responses\Data\BooleanAnswer;
@@ -35,6 +40,14 @@ class AiServiceProvider extends ServiceProvider
         $this->app->singleton(ConversationStore::class, fn (): DatabaseConversationStore => new DatabaseConversationStore(
             config('ai.conversations.connection'),
         ));
+
+        $this->app->singleton(TokenStore::class, fn ($app): FileTokenStore => new FileTokenStore(
+            $app['files'],
+            $app['encrypter'],
+            config('ai.oauth.path') ?? storage_path('framework/ai-oauth'),
+        ));
+
+        $this->app->singleton(OAuthCredentials::class);
 
         $this->mergeConfigFrom(__DIR__.'/../config/ai.php', 'ai');
     }
@@ -215,6 +228,8 @@ class AiServiceProvider extends ServiceProvider
     {
         $this->commands([
             // ChatCommand::class,
+            LoginCommand::class,
+            LogoutCommand::class,
             MakeAgentCommand::class,
             MakeAgentMiddlewareCommand::class,
             MakeToolCommand::class,

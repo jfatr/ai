@@ -18,7 +18,7 @@ trait CreatesAnthropicClient
         $config = $provider->additionalConfiguration();
 
         $headers = array_filter([
-            'x-api-key' => $provider->providerCredentials()['key'],
+            ...$this->authenticationHeaders($provider),
             'anthropic-version' => $config['version'] ?? '2023-06-01',
             'anthropic-beta' => $config['anthropic_beta'] ?? 'web-fetch-2025-09-10',
         ]);
@@ -29,6 +29,22 @@ trait CreatesAnthropicClient
             $config['headers'] ?? [],
             $timeout ?? 60,
         );
+    }
+
+    /**
+     * Get the headers that authenticate with the Anthropic API.
+     *
+     * A bearer token replaces the API key, as the two must not be sent together.
+     *
+     * @return array<string, string|null>
+     */
+    protected function authenticationHeaders(Provider $provider): array
+    {
+        $credentials = $provider->providerCredentials();
+
+        return filled($credentials['token'] ?? null)
+            ? ['Authorization' => 'Bearer '.$credentials['token']]
+            : ['x-api-key' => $credentials['key'] ?? null];
     }
 
     /**

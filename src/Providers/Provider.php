@@ -8,6 +8,7 @@ use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Collection;
 use Laravel\Ai\AiManager;
+use Laravel\Ai\Auth\OAuthCredentials;
 use Laravel\Ai\Contracts\Gateway\Gateway;
 use Laravel\Ai\Contracts\Providers\Provider as ProviderContract;
 use Laravel\Ai\Enums\Lab;
@@ -41,17 +42,37 @@ abstract class Provider implements \Stringable, ProviderContract
      */
     public function providerCredentials(): array
     {
-        return [
-            'key' => $this->config['key'],
-        ];
+        return array_filter([
+            'key' => $this->config['key'] ?? null,
+            'token' => $this->bearerToken(),
+        ], fn (mixed $value, string $name): bool => $name === 'key' || filled($value), ARRAY_FILTER_USE_BOTH);
     }
 
     /**
-     * Get the provider connection configuration other than the driver, key, and name.
+     * Get the bearer token to authenticate with instead of the API key, if one is configured.
+     *
+     * A token obtained with "ai:login" takes precedence over a static "auth_token".
+     */
+    protected function bearerToken(): ?string
+    {
+        if (filled($this->config['oauth']['client_id'] ?? null)) {
+            $token = Container::getInstance()->make(OAuthCredentials::class)
+                ->accessToken($this->name(), $this->config['oauth']);
+
+            if (filled($token)) {
+                return $token;
+            }
+        }
+
+        return filled($this->config['auth_token'] ?? null) ? (string) $this->config['auth_token'] : null;
+    }
+
+    /**
+     * Get the provider connection configuration other than the driver, credentials, and name.
      */
     public function additionalConfiguration(): array
     {
-        return array_diff_key($this->config, array_flip(['driver', 'key', 'name', 'ondemand']));
+        return array_diff_key($this->config, array_flip(['driver', 'key', 'name', 'ondemand', 'auth_token', 'oauth']));
     }
 
     /**

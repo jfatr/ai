@@ -55,6 +55,7 @@ return [
         'anthropic' => [
             'driver' => 'anthropic',
             'key' => env('ANTHROPIC_API_KEY'),
+            'auth_token' => env('ANTHROPIC_AUTH_TOKEN'),
             'url' => env('ANTHROPIC_URL', 'https://api.anthropic.com/v1'),
         ],
 
@@ -130,7 +131,16 @@ return [
         'openai' => [
             'driver' => 'openai',
             'key' => env('OPENAI_API_KEY'),
+            'auth_token' => env('OPENAI_AUTH_TOKEN'),
             'url' => env('OPENAI_URL', 'https://api.openai.com/v1'),
+            'oauth' => [
+                'client_id' => env('OPENAI_OAUTH_CLIENT_ID'),
+                'client_secret' => env('OPENAI_OAUTH_CLIENT_SECRET'),
+                'device_authorization_url' => env('OPENAI_OAUTH_DEVICE_URL'),
+                'token_url' => env('OPENAI_OAUTH_TOKEN_URL'),
+                'scope' => env('OPENAI_OAUTH_SCOPE'),
+                'audience' => env('OPENAI_OAUTH_AUDIENCE'),
+            ],
             'store' => env('OPENAI_STORE', true),
         ],
 

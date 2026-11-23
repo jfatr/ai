@@ -15,9 +15,11 @@ trait CreatesOpenAiClient
      */
     protected function client(Provider $provider, ?int $timeout = null): PendingRequest
     {
+        $credentials = $provider->providerCredentials();
+
         return $this->createClient(
             $this->baseUrl($provider),
-            ['Authorization' => 'Bearer '.$provider->providerCredentials()['key']],
+            ['Authorization' => 'Bearer '.($credentials['token'] ?? $credentials['key'] ?? '')],
             $provider->additionalConfiguration()['headers'] ?? [],
             $timeout ?? 60,
         );

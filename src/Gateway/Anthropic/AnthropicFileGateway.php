@@ -81,7 +81,7 @@ class AnthropicFileGateway implements FileGateway
         return $this->createClient(
             $this->baseUrl($provider),
             array_filter([
-                'x-api-key' => $provider->providerCredentials()['key'],
+                ...$this->authenticationHeaders($provider),
                 'anthropic-version' => $config['version'] ?? '2023-06-01',
                 'anthropic-beta' => 'files-api-2025-04-14',
             ]),
